@@ -1,0 +1,7 @@
+(env
+ (dev
+  (ocamlc_flags (:standard))
+  (ocamlopt_flags (:standard)))
+ (release
+  (ocamlc_flags (:standard))
+  (ocamlopt_flags (:standard -O3 -unbox-closures -unbox-closures-factor 20))))

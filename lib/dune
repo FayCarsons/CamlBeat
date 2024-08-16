@@ -1,0 +1,13 @@
+(ocamllex lexer)
+
+(menhir
+ (modules grammar)
+ (flags --table --inspection --dump))
+
+(library
+ (name bytebeat)
+ (libraries menhirLib core ctypes ctypes.foreign)
+ (modules render lexer grammar ast error parser)
+ (inline_tests)
+ (preprocess
+  (pps ppx_deriving.enum ppx_deriving.show ppx_deriving.eq ppx_inline_test)))
