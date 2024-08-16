@@ -4,4 +4,4 @@ let program =
     | t >> 7 |}
 ;;
 
-let () = Bytebeat.Render.run program
+let () = Bytebeat.run program

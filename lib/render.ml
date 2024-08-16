@@ -48,8 +48,6 @@ let render : Ast.t -> unit =
   loop 0
 ;;
 
-let ( >>= ) = Result.bind
-
 let run : string -> unit =
   fun program ->
   match Parser.parse program with
