@@ -4,4 +4,8 @@ let program =
     | t >> 7 |}
 ;;
 
-let () = Bytebeat.run program
+let () =
+  match Bytebeat.parse program with
+  | Ok ast -> Audio.Render.render (Bytebeat.execute ast)
+  | Error e -> Bytebeat.pp_error e
+;;

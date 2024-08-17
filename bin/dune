@@ -1,7 +1,7 @@
 (executable
  (public_name bytebeat)
  (name main)
- (libraries bytebeat)
+ (libraries bytebeat audio ui)
  (ocamlopt_flags
   (:standard -O3 -unbox-closures -unbox-closures-factor 20))
  (flags

@@ -16,10 +16,6 @@ val string_of_error : parser_error -> string
 val pp_error : parser_error -> unit
 
 (** [execute program_ast t]
-    Executes a program for a given t (a monotonic 8khz counter), returning the
-    result *)
+    Executes a program with a tree-walking interpreter for a given t (a
+    monotonic 8khz counter), returning the result *)
 val execute : program -> int -> int
-
-(** [run program]
-    Parses and executes a ByteBeat program on a loop *)
-val run : string -> unit
