@@ -1,48 +1,79 @@
+module AudioError = Error
 open Core
-open Core_unix
 open Bigarray
+
+let ( let* ) = Result.Let_syntax.( >>= )
+
+type buffer = (int, int8_unsigned_elt, c_layout) Array1.t
 
 let buffer_size = 8096
 
-let render render_sample =
-  let buffer = Array1.create Int8_unsigned C_layout buffer_size in
+external unsafe_get_buffer : unit -> buffer = "caml_get_buffer"
+external unsafe_init : unit -> int = "audio_init"
+external unsafe_write_buffer : unit -> int = "audio_write"
+external unsafe_cleanup : unit -> int = "audio_cleanup"
+
+(** 'run' is curried tree-walking execution function with current program bound
+    to it. Takes T and returns current sample *)
+type program = { mutable run : int -> int }
+
+(* NOTE : This is the current Bytebeat program, specifically a curried version of
+   `Bytebeat.execute`. On receiving a new program from the user, *)
+let program = { run = Int.succ }
+let set_program new_program = program.run <- new_program
+
+let init_audio () =
+  match unsafe_init () with
+  | 0 ->
+    print_endline "INIT_AUDIO successful";
+    Ok ()
+  | error_code ->
+    print_endline "INIT_AUDIO failed";
+    Error (AudioError.of_error_code error_code)
+;;
+
+let get_buffer () =
+  try unsafe_get_buffer () |> Result.return with
+  | Failure reason -> Error (`PortAudio reason)
+;;
+
+let write_buffer () =
+  match unsafe_write_buffer () with
+  | 0 -> Ok ()
+  | error_code -> Error (AudioError.of_error_code error_code)
+;;
+
+let close_audio () =
+  match unsafe_cleanup () with
+  | 0 -> Ok ()
+  | error_code -> Error (AudioError.of_error_code error_code)
+;;
+
+let render : buffer -> (unit, AudioError.t) result =
+  fun buffer ->
   let fill_buffer offset =
     for i = 0 to pred buffer_size do
-      Array1.unsafe_set buffer i (render_sample (offset + i))
+      Array1.unsafe_set buffer i (program.run (offset + i))
     done
+      [@@inline]
   in
-  let sox =
-    "sox -t raw -r 8000 -b 8 -e unsigned -c 1 - -t coreaudio"
-    (*
-       "sox -t raw -r 8000 -b 8 -e unsigned -c 1 -t coreaudio"
-    *)
+  let rec loop offset =
+    fill_buffer offset;
+    match write_buffer () with
+    | Ok () -> loop (offset + buffer_size)
+    | Error error ->
+      unsafe_cleanup () |> ignore;
+      AudioError.pp_error error;
+      exit 1
   in
-  let stdin_read, stdin_write = pipe () in
-  match fork () with
-  | `In_the_child ->
-    close stdin_write;
-    dup2 ~src:stdin_read ~dst:stdin ();
-    close stdin_read;
-    never_returns (exec ~prog:"/bin/sh" ~argv:[ "/bin/sh"; "-c"; sox ] ())
-  | `In_the_parent pid ->
-    close stdin_read;
-    let open Stdlib.Out_channel in
-    let out_chan = out_channel_of_descr stdin_write in
-    set_binary_mode out_chan true;
-    (try
-       let rec loop offset =
-         fill_buffer offset;
-         output_bigarray out_chan buffer 0 buffer_size;
-         flush out_chan;
-         loop (offset + buffer_size)
-       in
-       loop 0
-     with
-     | End_of_file ->
-       close out_chan;
-       ignore (waitpid pid)
-     | e ->
-       close out_chan;
-       ignore (waitpid pid);
-       raise e)
+  loop 0
+;;
+
+let run : unit -> (unit, AudioError.t) result =
+  fun () ->
+  let* _ = init_audio () in
+  print_endline "Init audio successful";
+  let* buffer = get_buffer () in
+  print_endline "Got buffer";
+  render buffer
 ;;

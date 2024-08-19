@@ -8,7 +8,9 @@ type parse_result = (Ast.t, internal) result
 
 exception ParserError of internal
 
-type t =
+type t = [ `Parser of metadata ]
+
+and metadata =
   { pos : Lexing.position
   ; context : string
   ; message : string
@@ -43,15 +45,23 @@ let of_internal : Lexing.lexbuf -> internal -> t =
   let pos, context = get_error_context lexbuf in
   match error_kind with
   | Unrecognized unrecognized_string ->
-    { pos; context; message = Printf.sprintf "Unrecognized token %s" unrecognized_string }
-  | SyntaxError -> { pos; context; message = "Syntax error" }
+    `Parser
+      { pos
+      ; context
+      ; message = Printf.sprintf "Unrecognized token %s" unrecognized_string
+      }
+  | SyntaxError -> `Parser { pos; context; message = "Syntax error" }
   | Empty_program ->
-    { pos; context; message = "A ByteBeat program must contain at least one expression" }
-  | UnexpectedEOF -> { pos; context; message = "Incomplete expression" }
+    `Parser
+      { pos
+      ; context
+      ; message = "A ByteBeat program must contain at least one expression"
+      }
+  | UnexpectedEOF -> `Parser { pos; context; message = "Incomplete expression" }
 ;;
 
 let pp : t -> string =
-  fun error ->
+  fun (`Parser error) ->
   Printf.sprintf
     "Syntax error %s:\n%s\n%s\n"
     (position_to_string error.pos)

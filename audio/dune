@@ -1,4 +1,10 @@
 (library
  (name audio)
  (libraries core_unix)
- (modules render))
+ (foreign_stubs
+  (language c)
+  (names audio)
+  (flags (-I/usr/local/include)))
+ (c_library_flags
+  (-L/usr/local/Cellar/portaudio/19.7.0/lib -lportaudio))
+ (modules render audio error))
