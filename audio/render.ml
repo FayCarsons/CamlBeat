@@ -2,12 +2,9 @@ module AudioError = Error
 open Core
 open Bigarray
 
-let ( let* ) = Result.Let_syntax.( >>= )
+type buffer = (char, int8_unsigned_elt, c_layout) Array1.t
 
-type buffer = (int, int8_unsigned_elt, c_layout) Array1.t
-
-let buffer_size = 8096
-
+external unsafe_get_buffer_size : unit -> int = "caml_get_buffer_size"
 external unsafe_get_buffer : unit -> buffer = "caml_get_buffer"
 external unsafe_init : unit -> int = "audio_init"
 external unsafe_write_buffer : unit -> int = "audio_write"
@@ -24,17 +21,8 @@ let set_program new_program = program.run <- new_program
 
 let init_audio () =
   match unsafe_init () with
-  | 0 ->
-    print_endline "INIT_AUDIO successful";
-    Ok ()
-  | error_code ->
-    print_endline "INIT_AUDIO failed";
-    Error (AudioError.of_error_code error_code)
-;;
-
-let get_buffer () =
-  try unsafe_get_buffer () |> Result.return with
-  | Failure reason -> Error (`PortAudio reason)
+  | 0 -> Ok ()
+  | error_code -> Error (AudioError.of_error_code error_code)
 ;;
 
 let write_buffer () =
@@ -49,11 +37,12 @@ let close_audio () =
   | error_code -> Error (AudioError.of_error_code error_code)
 ;;
 
-let render : buffer -> (unit, AudioError.t) result =
-  fun buffer ->
+let render : int -> buffer -> (unit, AudioError.t) result =
+  fun buffer_size buffer ->
   let fill_buffer offset =
     for i = 0 to pred buffer_size do
-      Array1.unsafe_set buffer i (program.run (offset + i))
+      let sample = offset + i |> program.run |> Char.unsafe_of_int in
+      Array1.unsafe_set buffer i sample
     done
       [@@inline]
   in
@@ -71,9 +60,10 @@ let render : buffer -> (unit, AudioError.t) result =
 
 let run : unit -> (unit, AudioError.t) result =
   fun () ->
-  let* _ = init_audio () in
-  print_endline "Init audio successful";
-  let* buffer = get_buffer () in
-  print_endline "Got buffer";
-  render buffer
+  let buffer_size = unsafe_get_buffer_size () in
+  match init_audio () with
+  | Ok () ->
+    let buffer = unsafe_get_buffer () in
+    render buffer_size buffer
+  | err -> err
 ;;
